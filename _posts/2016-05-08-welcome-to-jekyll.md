@@ -19,6 +19,8 @@ To add new posts, simply add a file in the `_posts` directory that follows the c
 
 Jekyll also offers powerful support for code snippets:
 
+highlight ver
+
 {% highlight ruby linenos %}
 def print_hi(name)
   puts "Hi, #{name}"
@@ -26,6 +28,8 @@ end
 print_hi('Tom')
 #=> prints 'Hi, Tom' to STDOUT.
 {% endhighlight %}
+
+redcarpet ver
 
 ```cpp
 #include <iostream>

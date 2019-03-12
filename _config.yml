@@ -19,7 +19,7 @@ linkedin_username: username
 disqus_username: username
 
 # Build settings
-markdown: kramdown
+markdown: redcarpet
 highlighter: rouge
 permalink: /:title/
 
