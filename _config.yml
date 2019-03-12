@@ -34,10 +34,10 @@ sass:
 
 #links
 links:
+  - title: Blog Top
+    url: /
   - title: "About Me"
     url: "https://kamiyaowl.github.io"
     external: true
-  - title: Blog
-    url: /
   - title: Tags
     url: /tags

@@ -10,9 +10,11 @@ layout: default
           <div class="col s12 m6 l4 card-wrapper">
             <div class="card hoverable">
               {% if post.image  %}
+              <a href="{{ post.url | prepend: site.baseurl }}">
                 <div class="card-image">
                   <img src="{{ post.image }}">
                 </div>
+              </a>
 
                 <div class="btn-menu" style="padding:0px">
                   <div class="fixed-action-btn horizontal click-to-toggle" style="position:relative; float:right; bottom:30px; right:10px; z-index: 1">
