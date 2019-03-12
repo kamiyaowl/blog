@@ -1,6 +1,16 @@
 ---
 layout: post
 title: "Dockerで簡易httpサーバを立てる"
+date: 2019-03-11
+description: 'htmlなど静的ファイルホスティング'
+main-class: 'jekyll'
+image: 
+color: '#B31917'
+tags:
+- Docker
+- Nginx
+categories:
+introduction: 
 ---
 
 # Dockerで簡易httpサーバを立てる

@@ -1,6 +1,16 @@
 ---
 layout: post
-title: "ZynqのDebug時によくわからないエラーが出る"
+title: "ZynqのDebug時のエラー"
+date: 2019-03-02
+description: 'XSDKのデバッグ周りのエラーについて'
+main-class: 'jekyll'
+image: 
+color: '#B31917'
+tags:
+- FPGA
+- Zynq
+categories:
+introduction: 
 ---
 
 

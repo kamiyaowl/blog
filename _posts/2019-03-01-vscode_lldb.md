@@ -1,8 +1,8 @@
 ---
 layout: post
-title: "vscode+lldbでstdinを扱える環境の構築"
+title: "vscodeでstdinを扱える環境構築"
 date: 2019-03-01
-description: 'vscodeにおけるc++開発環境構築'
+description: 'vscode+lldbでc++開発環境構築'
 main-class: 'jekyll'
 image: ''
 color: '#B31917'
