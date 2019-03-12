@@ -77,7 +77,7 @@ NDAなど契約で縛っていれば「これは契約違反なのでNG」とな
 
 
 自分へのお祝い。
-<blockquote class="twitter-tweet" data-lang="ja"><p lang="ja" dir="ltr">ギョエー自分への退職祝いでした <a href="https://t.co/aHKigux8IE">pic.twitter.com/aHKigux8IE</a></p>&mdash; ぎゅーたん (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1100791662236753927?ref_src=twsrc%5Etfw">2019年2月27日</a></blockquote>
-<script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+![mba](https://pbs.twimg.com/media/D0bMLrBU8AAV65F.jpg)
 
 ゴールドかわいい

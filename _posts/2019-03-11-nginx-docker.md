@@ -13,8 +13,6 @@ categories:
 introduction: 
 ---
 
-# Dockerで簡易httpサーバを立てる
-
 最近、こんなクソゲーを作った。いつも単品のhtmlで開発する際に、index.htmlを開いていると、例えば特定のファイルをうまく読んでくれなかったり、パスが不正だったりと本番のDeployingと差分があり不都合になる場合があったりする。
 
 ![sashimi](https://user-images.githubusercontent.com/4300987/54084179-da565580-4370-11e9-83c1-cfb83bb7326f.png)
@@ -22,7 +20,7 @@ introduction:
 [kamiyaowl/sashimi - github](https://github.com/kamiyaowl/sashimi)
 
 
-# Problem: 簡単にhttpサーバを立てて、ホスティングしたい
+## 簡単にhttpサーバを立てて、ホスティングしたい
 
 Dockerは最強だった。nginxのイメージを持ってきて、ホストしたいディレクトリを`usr/share/nginx/html`にマウントしてあげれば完了。
 
@@ -60,6 +58,6 @@ services:
 secret-file.json
 ```
 
-# まとめ
+## まとめ
 
 dockerは最近欠かせないツールになった。
