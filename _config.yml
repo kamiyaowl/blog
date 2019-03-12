@@ -1,5 +1,5 @@
 # Site settings
-title: /var/log/kamiyaowl
+title: "/var/log/kamiyaowl"
 name: kamiyaowl
 description: Tech blog
 baseurl: "/blog" # the subpath of your site, e.g. /blog
