@@ -35,7 +35,7 @@ section {
 }
 
 .blog-post-img {
-  max-width: 100%;
+  max-width: 80vw;
   margin: 0 auto;
   display: block;
   text-align: center;
@@ -48,6 +48,9 @@ section {
   }
 }
 
+p > img {
+  width: 100%;
+}
 
 .browser-default > li {
 	font-weight: 300;
