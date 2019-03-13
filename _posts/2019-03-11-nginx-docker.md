@@ -27,7 +27,7 @@ Dockerは最強だった。nginxのイメージを持ってきて、ホストし
 自分はdockerコマンド直打ちが嫌いなので、次のdocker-compose.ymlを示す。直接実行したい場合は適宜。
 
 
-```yaml
+{% highlight yaml %}
 version: "3"
 services:
   nginx:
@@ -36,12 +36,12 @@ services:
       - "<local server port>:80"
     volumes:
       - <mount directory>:/usr/share/nginx/html
-```
+{% endhighlight %}
 
 例えば、カレントディレクトリのファイル一式をport:4444で公開したい場合は以下のようになる。
 
 
-```yaml
+{% highlight yaml %}
 version: "3"
 services:
   nginx:
@@ -50,13 +50,13 @@ services:
       - "4444:80"
     volumes:
       - ./:/usr/share/nginx/html
-```
+{% endhighlight %}
 
 もしマウントするディレクトリに公開したくないファイルがある場合、`.dockerignore`に記載するとマウントされません。
 
-```
+{% highlight text %}
 secret-file.json
-```
+{% endhighlight %}
 
 ## まとめ
 
