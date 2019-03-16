@@ -160,7 +160,7 @@ class Compressor(width: Int) extends Module {
     val in = Input(SInt(width.W))
     val out = Output(SInt(width.W))
     // params
-    
+
     val point = Input(SInt(width.W)) // 歪ませる変化点
     
     val rate = Input(SInt(width.W))  // pointより大きい値に対して除算する数値、0,1の場合は無効
@@ -341,4 +341,4 @@ end
 
 まだまだ理解がおぼつかない部分があるが、HLSのアプローチとは異なりHDLをより抽象度を高めて書けるところにメリットが有る、と感じる。
 
-[Chisel3を始めるにあたって(2/2)へ]()
+[Chisel3を始めるにあたって(2/2)へ](https://kamiyaowl.github.io/blog/start-chisel-2/)
