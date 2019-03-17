@@ -107,9 +107,9 @@ assert(result)
 
 # verilog出力
 
-`Compressor.scala`の末尾に以下の記述を増やします。処理としては実行可能なプログラムにして、verilogを生成するプログラムを書く。
+`Compressor.scala`の末尾に以下の記述を増やす。処理としては実行可能なプログラムにして、verilogを生成するプログラムを書く。
 
-`class Compressor`とかぶっていると感じるかもしれませんが、scalaではいわゆるstaticなものはobjectに定義する。
+`class Compressor`とかぶっていると感じるかもしれないが、scalaではいわゆるstaticなものはobjectに定義する。
 
 `extends App`はそのままエントリポイントになる。
 
@@ -121,7 +121,7 @@ object Compressor extends App {
 }
 {% endhighlight %}
 
-これで、プロジェクトルートに`Compressor.v`が生成されます。
+これで、プロジェクトルートに`Compressor.v`が生成される。
 
 # verilogシミュレーション
 
@@ -129,7 +129,7 @@ object Compressor extends App {
 
 ## テストベンチ作成
 
-まずはテストベンチを記述します。詳細は解説しないが、scalaでのテストと同じように入力を変化させながら出力の振る舞いを確認するようにしている。
+まずはテストベンチを記述。詳細は解説しないが、scalaでのテストと同じように入力を変化させながら出力の振る舞いを確認するようにしている。
 
 `$dumpfile`と`$dumpvars`であとで波形確認したいデータをvcdファイルに出力しておく。
 
