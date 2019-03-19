@@ -27,6 +27,8 @@ chiselにはテストをするためのツールセットも用意されてい�
 
 [/src/test/scala/audio/CompressorSpec.scala](https://github.com/kamiyaowl/chisel-practice/blob/master/src/test/scala/audio/CompressorSpec.scala)
 
+※ 2019/03/19追記：ChiselFlatSpecを継承させるのが良い
+
 {% highlight scala %}
 package audio
 
@@ -35,7 +37,7 @@ import chisel3._
 import chisel3.util._
 import chisel3.iotesters.{ChiselFlatSpec, Driver, PeekPokeTester}
 
-class CompressorSpec extends FlatSpec with Matchers {
+class CompressorSpec extends ChiselFlatSpec {
   "Distortion" should "parametric full test" in {
     val result = Driver(() => new Compressor(32)) {
       c => new PeekPokeTester(c) {
