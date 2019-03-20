@@ -7,9 +7,9 @@
       <ul class="right hide-on-med-and-down">
 				{% for link in site.links %}
           {% if link.external %}
-            <li><a href="{{ link.url }}">{{ link.title }}</a></li>
+            <li class="navbar-link"><a href="{{ link.url }}">{{ link.title }}</a></li>
           {% else %}
-            <li><a href="{{ site.url }}{{ site.baseurl }}{{ link.url }}">{{ link.title }}</a></li>
+            <li class="navbar-link"><a href="{{ site.url }}{{ site.baseurl }}{{ link.url }}">{{ link.title }}</a></li>
           {% endif  %}
         {% endfor %}
       </ul>

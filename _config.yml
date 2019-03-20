@@ -45,8 +45,17 @@ sass:
 links:
   - title: Blog Top
     url: /
-  - title: "About Me"
+  - title: Blog Tags
+    url: /tags
+  - title: About Me
     url: "https://kamiyaowl.github.io"
     external: true
-  - title: Tags
-    url: /tags
+  - title: "github:kamiyaowl/blog"
+    url: "https://github.com/kamiyaowl/blog"
+    external: true
+  - title: GitHub(@kamiyaowl)
+    url: "https://github.com/kamiyaowl"
+    external: true
+  - title: Twitter(@kamiya_owl)
+    url: "https://twitter.com/kamiya_owl"
+    external: true

@@ -32,6 +32,10 @@
   color: $lighterMainColor;
 }
 
+.navbar-link {
+  text-decoration: underline;
+}
+
 @media only screen and (max-width : 537px) {
   .brand-logo{
     width: 65%;
