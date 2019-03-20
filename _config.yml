@@ -43,9 +43,7 @@ sass:
 
 #links
 links:
-  - title: Blog Top
-    url: /
-  - title: Blog Tags
+  - title: Tags
     url: /tags
   - title: About Me
     url: "https://kamiyaowl.github.io"
