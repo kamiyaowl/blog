@@ -5,6 +5,12 @@
   <script src="https://unpkg.com/scrollreveal/dist/scrollreveal.min.js"></script>
 	<script src="{{ "/assets/js/vendor/masonry.pkgd.min.js" | prepend: site.baseurl }}"></script>
   <script src="{{ "/assets/js/init.js" | prepend: site.baseurl }}"></script>
+
+  <script src="https://unpkg.com/mermaid@7.1.0/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({startOnLoad: true});
+  </script>
+
   {% include stats.html %}
  </body>
 </html>
