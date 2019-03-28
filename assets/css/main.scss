@@ -33,24 +33,30 @@ a {
   color: #036666;
   font-weight: bold;
 }
+.grey-text.text-lighten-1 {
+  color: #6e6e6e !important;
+}
 
 h1 {
   font-size: 3.1rem;
+  border-bottom: solid 3px $lightMainColor;
 }
 h2 {
-  font-size: 2.7rem;
+  font-size: 2.5rem;
+  border-bottom: solid 2px $lighterMainColor;
 }
 h3 {
-  font-size: 2.4rem;
+  font-size: 2.0rem;
+  border-bottom: solid 1px $secondaryColor;
 }
 h4 {
-  font-size: 2.3rem;
+  font-size: 1.6rem;
 }
 h5 {
-  font-size: 2.1rem;
+  font-size: 1.4rem;
 }
 h6 {
-  font-size: 1.9rem;
+  font-size: 1.2rem;
 }
 .side-nav {
   margin-top: 64px;
