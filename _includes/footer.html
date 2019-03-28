@@ -8,7 +8,12 @@
 
   <script src="https://unpkg.com/mermaid@7.1.0/dist/mermaid.min.js"></script>
   <script>
-    mermaid.initialize({startOnLoad: true});
+    mermaid.initialize({
+      startOnLoad: true,
+      flowchart: {
+        useMaxWidth: false,
+      },
+    });
   </script>
 
   {% include stats.html %}

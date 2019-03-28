@@ -72,6 +72,14 @@ p > img {
   letter-spacing: 0.1rem;
 }
 .mermaid {
-  max-width: 100%;
-  overflow-x: scroll;
+  width: 100%;
+  overflow: auto;
 }
+svg {
+  max-width: 80vw;
+}
+.mermaid > svg {
+  width: 100%;
+  min-width: 640px;
+}
+
