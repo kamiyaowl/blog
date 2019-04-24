@@ -22,7 +22,7 @@ categories:
 
 [riscv-gnu-toolchain](https://github.com/riscv/riscv-gnu-toolchain)を構築していたのですが、WinでもMacでもささっと使いたい+バージョンで悩みたくない。
 
-そこでDockerで環境構築してみます。リポジトリにもあるようにUbuntu(apt)を使った例があるのでこれをそのまま構築してみる。
+そこでDockerで環境構築する。リポジトリにもあるようにUbuntu(apt)を使った例があるのでこれをそのままDockerfileに書き起こした。
 
 {% highlight text %}
 FROM ubuntu:18.04
