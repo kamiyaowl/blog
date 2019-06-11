@@ -57,7 +57,9 @@ defer句はリソース破棄時に実行されるようだ。ここではfile�
 
 ## PNGファイルのデコード
 
-golangはさておき早速実装を始めていく。まず最小限の構成を示す。golangでの実装については[Github - kamiyaowl/Animation-PNG-Viewer apng.go](https://github.com/kamiyaowl/animation-png-viewer/blob/master/apng/apng.go)のParse()を参考にしてほしい。
+golangはさておき早速実装を始めていく。詳細は記載しないので興味のある人やちゃんと定義を知りたい人はW3Cの資料を参照してほしい。
+
+まず最小限の構成を示す。golangでの実装については[Github - kamiyaowl/Animation-PNG-Viewer apng.go](https://github.com/kamiyaowl/animation-png-viewer/blob/master/apng/apng.go)のParse()を参考にしてほしい。
 
 | 名前 | 内容 | 補足 |
 | ---- | --- | ---- | 
@@ -139,11 +141,11 @@ IHDR, IDAT, IENDを読み出したところでデータをもとに戻す。手�
 zlib圧縮(しいてはDeflate)は、いわゆるハフマン符号化なので同じ符号列が頻出したほうが圧縮率が良い。(いろいろ語弊があって怒られそう)
 何がしたいかというと、
 
-1. 例えば0列目と1列目に同じ色パターンが並んでいるとする
-2. 1列目の定義を0列目の色データとの差分と定義する
-3. 定義に従うと1列目のデータ列はすべて0が並ぶ
+1. 例えば0行目と1行目に同じ色パターンが並んでいるとする
+2. 1行目の定義を0行目の色データとの差分と定義する
+3. 定義に従うと1行目のデータはすべて0が並ぶ
    
-こうなると圧縮に有利である。今の例はUpフィルタと呼ばれている。実際にはこのフィルタリングにも以下の種類が定義されている。
+こうなると圧縮に有利である。今の例はUpフィルタと呼ばれている。実際には以下の種類が定義されている。
 
 | 種類 | 説明 |
 | --- | --- |
@@ -156,6 +158,56 @@ zlib圧縮(しいてはDeflate)は、いわゆるハフマン符号化なので�
 Paethフィルタはさておき割と簡単に実装できる。(上Pixelと左Pixelで近い方の色を使う、ような実装になっている)
 各行の先頭1byteにフィルタの種類が定義されているのでこれを読み出して、もとのbitmapに戻せば完了である。
 
-ここまでで元通りの画像が表示できる。
+ここまでで元通りの画像が表示できる。ちなみにguiには[faiface/pixel](https://github.com/faiface/pixel)を使っている。非常に良い
 
 ![image](https://pbs.twimg.com/media/D8OrC_hVsAEUrVi.jpg:large)
+
+## Animated PNG対応
+
+実はここまで実装できていればもう一息である。`acTL`, `fcTL`, `fdAT`の補助チャンクが追加される。
+
+| 名前 | 内容 | 補足 |
+| ---- | --- | ---- | 
+| header | {0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a} | マジックナンバー |
+| IHDR | Width, Height, BitDepth, ColorType等 | 画像自体の構成情報 |
+| acTL | アニメーションのフレーム数, 再生回数 | IHDR-IDAT間にあることが必須 |
+| fcTL | Width, Height, OffsetX, OffsetY, 表示時間、描画方法等 | fdATの画像情報を持つ。IDAT前にある場合はIDATがfdATの最初の画像とする |
+| IDAT | zlib圧縮を施された画像データ | 先頭1byteはフィルタの種類を示す(後述)。またIDATは分割可能 |
+| fcTL | SequenceNumber, Width, Height, OffsetX, OffsetY, 表示時間、描画方法等 | - |
+| fdAT | SequenceNumber, IDATと同様にデータ | 必ず手前にfcTLがある必要がある |
+| fcTL | ... | ... |
+| fdAT | ... | ... |
+| ... | ... | ... |
+| IEND | - | 内容なし | 
+
+差分はこうだ。
+
+1. acTLは画像に含まれるフレーム数、再生回数がある。これがあったらAnimated PNGとして処理する
+2. fcTLは直後のfdAT(またはIDAT)の画像情報を定義する
+3. fdATはsequence_numが定義されたIDATと同じ。直前のsequence_numを持つfcTLを参照して画像を復元する
+
+IDATと同じフォーマットの画像データがfdATという補助チャンクで繰り返し出現するだけである。
+シンプルな機能追加だと思わせているが、以下の特徴に注意する。
+
+1. IDATの画像サイズはIHDRに必ず一致する
+2. fcTLで画像サイズとオフセットが定義されており、これはIHDRの画像サイズとは一致しない
+3. fcTLで画像の合成方法が定義されておりDisposeOp, BlendOpで決定される
+   1. DisposeOpによって、元画像に直前のフレームをそのまま使うか、透明黒画像を使うか決定する
+   2. BlendOpによって、元画像に対しPixel値の上書きをするか、アルファブレンディングするか決定する
+
+これらを失敗すると、おもしろ画像が生成される。
+
+
+![preview](https://pbs.twimg.com/media/D8tSTHzUwAA8NUC.jpg:large)
+
+正しく実装できれば、冒頭のアニメーションが再生できるようになる。
+
+## 所管
+
+Animated PNGもだが、PNGのフォーマット自身がかなり扱いやすいものだと実感した。
+
+Go言語に関しては多相型がなかったり三項演算子がなかったり、今どきの言語に限らず目につくところはいろいろあるが、あとからコードを見返したときになんとなく何をしているのか読めるのが良い点だと感じる。
+少なくともバイナリデコードするようなbetter cの用途においては十分すぎる簡潔さであると感じる。(Rustのほうが...とも思うが)
+
+組み込みに関してはもう少し調査が必要である。
+
