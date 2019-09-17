@@ -2,7 +2,7 @@
 layout: post
 title: "RustでNESエミュレータを作っている（備忘録）"
 date: 2019-09-17
-description: 'Twitterのモーメントが役に立たないので'
+description: '進捗ツイートまとめ'
 main-class: 'jekyll'
 image: 
 color: '#B31917'
