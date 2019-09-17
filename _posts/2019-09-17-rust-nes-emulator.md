@@ -177,11 +177,9 @@ Spriteのバラバラ事件は表示反転の論理が逆になっていただ�
 
 これは属性テーブルがスクロールに追従していないので、背景と色がずれている。
 
-<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">背景塗りしていないので隠しブロックが見えるの草。（rustファミコンエミュ進捗です、属性テーブル参照バグが治ったので色が正常化されつつある <a href="https://t.co/MbEmPEb8cc">pic.twitter.com/MbEmPEb8cc</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170926784398815234?ref_src=twsrc%5Etfw">September 9, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">やったー！スクロールがちゃんと動くようになった！！！前のやつは8px単位でスクロールしててかくかくしてる <a href="https://t.co/ztvnCvqurJ">pic.twitter.com/ztvnCvqurJ</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170935889066770438?ref_src=twsrc%5Etfw">September 9, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
 背景色処理をしていないので、隠しブロックが見えている。あとスクロールがカクカクしている。これはスクロール値の計算間違い。
-
-<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">やったー！スクロールがちゃんと動くようになった！！！前のやつは8px単位でスクロールしててかくかくしてる <a href="https://t.co/ztvnCvqurJ">pic.twitter.com/ztvnCvqurJ</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170935889066770438?ref_src=twsrc%5Etfw">September 9, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
 動画の最後で変死しているが、これはパックンフラワーが見えていない。
 
@@ -230,7 +228,5 @@ WebAssembly版のポーティングするjavascriptを少し書いていただ�
 流石にここまで早くなると思ってなかった。3.6msか...。
 
 ## 終わりに
-
-<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">最近の一連のアレ、そのうち本に書こうと思うよ</p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1173516903945359362?ref_src=twsrc%5Etfw">September 16, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
 <blockquote class="twitter-tweet"><p lang="ja" dir="ltr">「この件、意外と反響がある。もともとやるつもりではいたがまともに考えないと。」の顔 <a href="https://t.co/TwAnSKHAbr">pic.twitter.com/TwAnSKHAbr</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1173586537444864003?ref_src=twsrc%5Etfw">September 16, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
