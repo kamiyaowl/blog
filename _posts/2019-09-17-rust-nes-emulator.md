@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "RustでNESエミュレータを作っている（備忘録）"
-date: 2019-03-28
+date: 2019-09-17
 description: 'Twitterのモーメントが役に立たないので'
 main-class: 'jekyll'
 image: 
