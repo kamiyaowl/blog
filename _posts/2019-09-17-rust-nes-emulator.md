@@ -129,32 +129,9 @@ extern "C" void select_line_in(int iic_index) {
 
 以下の通りbase.tclをいじって、`/boards/ip`にいるIPは事前にVivadoのGUIから手動で追加しておいた。
 
-{% highlight diff %}
-################################################################
-# START
-################################################################
-
-# To test this script, run the following commands from Vivado Tcl console:
-# source system_script.tcl
-
-# If there is no project opened, this script will create a
-# project, but make sure you do not have an existing project
-# <./<overlay_name>/<overlay_name>.xpr> in the current working folder.
-
-set overlay_name base
-set list_projs [get_projects -quiet]
-if { $list_projs eq "" } {
-   create_project ${overlay_name} ${overlay_name} -part xc7z020clg400-1
-}
-
--set_property  ip_repo_paths  ../../ip [current_project]
-+# set_property  ip_repo_paths  ../../ip [current_project]
--update_ip_catalog
-+# update_ip_catalog
-
-# CHANGE DESIGN NAME HERE
-variable design_name
-set design_name base
+{% highlight text %}
+# set_property  ip_repo_paths  ../../ip [current_project]
+# update_ip_catalog
 {% endhighlight %}
 
 <blockquote class="twitter-tweet"><p lang="ja" dir="ltr">☑base.tclのご機嫌をとった <a href="https://t.co/Qhpl487OmB">pic.twitter.com/Qhpl487OmB</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1221300155925716992?ref_src=twsrc%5Etfw">January 26, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
@@ -427,6 +404,7 @@ from pynq.overlays.base import BaseOverlay
 base = BaseOverlay(bitfile='/home/xilinx/dist/base_wrapper.bit', dtbo='/home/xilinx/dist/base_wrapper.dtbo', download=True)
 
 # Line入力を有効化
+
 pAudio = base.audio
 pAudio.select_line_in() # line入力を使う
 
@@ -436,10 +414,13 @@ offset_basePhyisAddr = bypass.register_map.basePhysAddr_V.address
 offset_ctrl          = bypass.register_map.CTRL.address
 
 # Bypassの読み書きのベースアドレスを指定
+
 bypass.write(offset=offset_basePhyisAddr, value=pAudio.mmio.base_addr)
 # HLSのモジュールを開始させる
+
 bypass.write(offset=offset_ctrl, value=0x81) # AUTO_RESTART, AP_START
 # 設定内容を表示
+
 print(bypass.register_map)
 {% endhighlight %}
 
