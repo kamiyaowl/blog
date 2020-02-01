@@ -1,445 +1,232 @@
 ---
 layout: post
-title: "PYNQ-Z2で自作高位合成IPで音声処理をするまで"
-date: 2020-02-02
-description: 'ただ音をBypassするだけのデザインで小手調べ'
+title: "RustでNESエミュレータを作っている（備忘録）"
+date: 2019-09-17
+description: '進捗ツイートまとめ'
 main-class: 'jekyll'
 image: 
 color: '#B31917'
 tags:
-- FPGA
-- PYNQ
-- HLS
+- Rust
+- NES
+- エミュレータ
 categories:
 ---
 
-最近ふとネットサーフィンをしていたら、PYNQ-Z2にAudio Codecが乗っていることに気がついた。
+![preview](https://user-images.githubusercontent.com/4300987/64512802-1bc8bd00-d322-11e9-8a70-26df62bb5ee1.gif)
 
-[http://www.tul.com.tw/ProductsPYNQ-Z2.html](http://www.tul.com.tw/ProductsPYNQ-Z2.html)
+[rust-nes-emulator GitHub](https://github.com/kamiyaowl/rust-nes-emulator)
 
+ここ一ヶ月ぐらいRust入門を兼ねて、ファミコンエミュレータを自作している。変遷についてまとめたかったのだがTwitterのモーメントがもう使わせる気がなさそうなのでブログにまとめておく。
 
-PYNQ-Z1が出たときはかなりオーディオはチープというイメージを受けていたので、これには感動してつい購入してしまった。
-これを使いこなすために調べた内容と、音をBypassするイメージをPYNQのベースデザインに追加でインプリして動かした備忘録である。
-ググれば比較的ある情報にはあまり触れてないので適宜調べるかdocを参照してほしい。
+誰がなんというとこれはモーメント。
 
+## Rustを使うモチベーション
 
-<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">何も伝わらないので概要です <a href="https://t.co/TGOYiNxgKF">pic.twitter.com/TGOYiNxgKF</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1222910292125814790?ref_src=twsrc%5Etfw">January 30, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+筆者の背景を紹介するが、単純に書いた量と馴染みで言えばC#, C/C++, JavaScript/TypeScript, Scalaの4つだと思う。
 
-実行したJupyter Notebook
+特定の言語を持ち上げたりすることはあまり得意ではないが、2015年頃から漠然と安全側に傾けた言語に興味が湧くようになっていた。書くと長くなるがscalaを書き始めたことと、LLVMについて調べだしたあたりが強く影響している。
 
-[Github kamiyaowl/pynq_dsp_hw/dist/bypass/Bypass.ipynb](https://github.com/kamiyaowl/pynq_dsp_hw/blob/2b35dc8b955dae146cd0319f336f31aff6e538d2/dist/bypass/Bypass.ipynb)
+その中でも組み込み開発での可用性が高そうで、パフォーマンスも既存の言語に引けを取らないという点でRustが私の中で候補に上がっている。（golangはOSレスno_stdな組込み向けではTinyGo次第なところがある）
 
-## PYNQを立ち上げる
+## 自作にあたり
 
-おおよそは以下の手順通りで行けた。
+[NesDev wiki](http://wiki.nesdev.com/w/index.php/Nesdev_Wiki) が圧倒的な情報量を取り揃えている。幸いファミコンエミュレータについては日本でも作っている先輩方が多数おられるので、英語が苦手でも日本語情報がかなり得られるので照らしながら作ると良い。
 
-[https://pynq.readthedocs.io/en/latest/getting_started/pynq_z2_setup.html](https://pynq.readthedocs.io/en/latest/getting_started/pynq_z2_setup.html)
+細かい実装の話などは後日別の媒体にまとめようと思っているので、残りは実装の変遷を。
 
+## CPU実装
 
-気になる点は以下の通り。
+はじめはwikiにあるCPU命令をすべて実装する作業を行った。きっと合っているだろうという気持ちで...。
 
-### SD Cardにそこら編に落ちてた怪しいやつを使ったらBootしなかった
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">macro完全に理解した(何もわからない <a href="https://t.co/RD0TvtNuuJ">pic.twitter.com/RD0TvtNuuJ</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1162560042899390465?ref_src=twsrc%5Etfw">August 17, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-SanDiskの速そうなパッケージのやつにしたら動いた。Boot後はデフォルトイメージがコンフィグされてそこらへんのLEDが一斉に点滅するので確認に使うと良い。
+すぐに言語マクロを試したくなるのは趣味。
 
-以下の写真の状態ではコンフィグされていない。
+## カセット読み込みと割り込み実装
 
-<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">リングフィットアドベンチャー <a href="https://t.co/382EZ8S2bQ">pic.twitter.com/382EZ8S2bQ</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1220994326450196480?ref_src=twsrc%5Etfw">January 25, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">わーい、とりあえずRESET割り込みで命令先頭に飛んできてはじまるようになった <a href="https://t.co/EdhqazRvz4">pic.twitter.com/EdhqazRvz4</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1163070854730665984?ref_src=twsrc%5Etfw">August 18, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-### ネットワーク解決
+CPU命令と.nes形式ファイルの展開を実装した頃で、実機起動時（もしくはResetボタン相当）の動きができるようになった。
 
-DHCPも標準で探してくれるようになっており、netbiosでの名前解決ができるのでhttp://pynq でもアクセスできた。
+Reset割り込みは0xfffc, 0xfffdに記されたアドレスに飛ぶような挙動なので、エントリポイントに飛ばせるようになったことに等しい。ここがスタート地点だ...?
 
-## PYNQ Boot Imageの構成
+## CPUのみでHello, World!挑戦
 
-おおよそ以下の構成のようだった。
+[NES研究所](http://hp.vector.co.jp/authors/VA042397/nes/sample.html) 様が公開しているHello, Worldを表示するサンプルを動かすことにした。対戦よろしくお願いします。
 
-### Pynqライブラリの編集
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">rust emuの終了時レジスタを使った簡易リグレッションテスト、いいね <a href="https://t.co/E5nlVsvX8l">pic.twitter.com/E5nlVsvX8l</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1163823863215480832?ref_src=twsrc%5Etfw">August 20, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-`~/pynq` は`/usr/local/lib/python3.6/dist-packages/`のpynqからシンボリックリンクがはられているので弄ると反映される。
-C++で実装された部分も`~/pynq/lib/_pynq`にある。おいてあるmakefileでビルドできるので出来上がった`*.so`で既存の`*.so`を上書きすれば良い
+バイナリエディタとオペコード一覧を見て、命令のフェッチがうまく行っているか見ながらステップ実行を繰り返している様子を眺めていた。
 
-<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">なるほどね、完全に理解した(なにもわかってない <a href="https://t.co/eOJASRo8jr">pic.twitter.com/eOJASRo8jr</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1221065786413830144?ref_src=twsrc%5Etfw">January 25, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+一部修正してPPUADDR, PPUDATA経由でCPUからBGの情報と"Hello, World!"の文字列をを流しているのがおおよそ確認できたので次に進むことにした。
 
-Jupyterの自動起動はsystemdに登録されているだけ
+[rust-nes-emulator Issue #3: Hello Worldの実行結果の正当性を確認する](https://github.com/kamiyaowl/rust-nes-emulator/issues/3)
 
-<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">/usr/bin/jupyter-notebookが登録されていたか <a href="https://t.co/rTorSt9Qa1">pic.twitter.com/rTorSt9Qa1</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1221062123364577280?ref_src=twsrc%5Etfw">January 25, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+## PPUでHello, World!
 
-自分でいじったライブラリrepoに差し替えたりが少しやりづらいなぁと感じたり感じなかったり...
+ファミコンにはCPUの他にPPU(Picture Processing Unit), APU(Audio Processing Unit)というサブシステムが乗っかっており、画面表示はこのPPUが担っている。
 
-### Audio Codecの実装確認
+表示できるものにはいわゆる背景のBGと、マリオとかクリボーみたいに動かせるSpriteがある。Hello, WorldのサンプルではSpriteは使っていなかったのでBGを描画するコードの実装した。
 
-ADAU1761というADC/DACの乗った俗に言うCODECが実装されており、I2SとI2CがFPGAと直結されていた。
-`/boards/ip/audio_codec_ctrl`に実装があるが、AXI4経由で先頭から4byteずつ`RX_L`, `RX_R`, `TX_L`, `TX_R`, `Status`が公開されていた。
-`Status`には受信データがReadyになっているとビットが立つようだった。
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">やったー！rustで書いてるファミコンエミュでHello Worldが出せるようになった～～～ <a href="https://t.co/VzdFz14g4x">pic.twitter.com/VzdFz14g4x</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1165602990469742592?ref_src=twsrc%5Etfw">August 25, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-その他I2C経由の設定はC++の`audio_adau1761.cpp`の実装で各種設定しているようだった。
+頭がオカシイのか何故かここだけは一発で動いてしまった、多分ここで苦戦してたらエミュ自作にこれほどはまらなかったかもしれない...。
 
-<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">xi_lite_ipifから叩かれているのはここか、やっぱりdata_rdy_bitだけアサインされてそう <a href="https://t.co/8O4rQnBC5K">pic.twitter.com/8O4rQnBC5K</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1221453916887384064?ref_src=twsrc%5Etfw">January 26, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">GUIでグイグイ <a href="https://t.co/sp4heMW98p">pic.twitter.com/sp4heMW98p</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1165641917746446336?ref_src=twsrc%5Etfw">August 25, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-少し罠なのはpynqライブラリのC++実装にある`audio_adau1761.cpp`を見ればわかるのだが、Bypass関数を呼んだとき以外はADAU1761にI2Sでデータを送ってもIC内臓のMixer3/4とボリュームによって結局ミュートされてしまうよう実装されていた。
+最初はbitmap画像にしていたが不便だったので、piston_windowというライブラリを使って表示制御することにした。
 
-新しい関数I/Fを生やすのも面倒なので、Line入力に設定した時点で上記設定をするように修正した。
-これでPythonからでも受信レジスタの値を送信レジスタに書いてあげればループバックが実現できる。
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">ギャア（アスタリスクしかちゃんと出てねぇ <a href="https://t.co/oOk3VuU1k3">pic.twitter.com/oOk3VuU1k3</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1166023794688815104?ref_src=twsrc%5Etfw">August 26, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-{% highlight cpp %}
-/******************************************************************************
- * Function to select LINE_IN as input.
- * @param  iic_index is the i2c index in /dev list.
- * @return none.
- *****************************************************************************/
-extern "C" void select_line_in(int iic_index) {
-    int iic_fd;
-    iic_fd = setI2C(iic_index, IIC_SLAVE_ADDR);
-    if (iic_fd < 0) {
-        printf("Unable to set I2C %d.\n", iic_index);
-    }
+残念ながらこの時点では他のROMはほぼ動かなかった。nestestでさえこの有様。Hello, Worldがいかに簡潔なサンプルなのか思い知らされる。
 
-    // Mixer 1  (left channel)
-    write_audio_reg(R4_RECORD_MIXER_LEFT_CONTROL_0, 0x01, iic_fd);
-    // Enable LAUX (MX1AUXG)
-    write_audio_reg(R5_RECORD_MIXER_LEFT_CONTROL_1, 0x07, iic_fd);
+## えー！なるっちのCPU実装がバグだらけ！？
 
-    // Mixer 2
-    write_audio_reg(R6_RECORD_MIXER_RIGHT_CONTROL_0, 0x01, iic_fd);
-    // Enable RAUX (MX2AUXG)
-    write_audio_reg(R7_RECORD_MIXER_RIGHT_CONTROL_1, 0x07, iic_fd);
+画像は省略します。nestest.nesという命令一式を試せる素晴らしいROMがあるのですが先の通り表示すらできない有様。
 
-+   /* ついでに出力も使えるようにする */
+nestestの作者はこれはもう素晴らしくて、画面が表示できなくてもPCを0xC000に飛ばせば画面なくてもテストが進むよモードを実装していた...天才か。
 
-+   // Enable Mixer3 and Mixer4
-+   write_audio_reg(R22_PLAYBACK_MIXER_LEFT_CONTROL_0, 0x21, iic_fd);
-+   write_audio_reg(R24_PLAYBACK_MIXER_RIGHT_CONTROL_0, 0x41, iic_fd);
-+   // Enable Left/Right Headphone out
-+   write_audio_reg(R29_PLAYBACK_HEADPHONE_LEFT_VOLUME_CONTROL, 0xE7, iic_fd);
-+   write_audio_reg(R30_PLAYBACK_HEADPHONE_RIGHT_VOLUME_CONTROL, 0xE7, iic_fd);
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">println散らかるし入れまくると遅いしでデバッグ大変だったので、ビルドオプション次第で抹消されるようなdebug printを導入した <a href="https://t.co/GzUltNpwli">pic.twitter.com/GzUltNpwli</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1167768946159677441?ref_src=twsrc%5Etfw">August 31, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
+ただし確認方法は正しく動くROMのログとCompareすることだったため（8000行ぐらいある）、まずはログ出力を強化した。
 
-    if (unsetI2C(iic_fd) < 0) {
-        printf("Unable to unset I2C %d.\n", iic_index);
-    }
-}
-{% endhighlight %}
+<blockquote class="twitter-tweet"><p lang="und" dir="ltr"><a href="https://t.co/B7ehpDrHxq">pic.twitter.com/B7ehpDrHxq</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1167794508622221314?ref_src=twsrc%5Etfw">August 31, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-## PYNQ-Z2のベースデザインを手動でビルドする
+**がんばれかみ子、バグをしばいて立派なまぞくになるんだ。**
 
-まずは既存のデザインを自力で論理合成してみる。現在時点ではVivado 2019.1向けに書かれたtclなので2019.1を入れた。
+[rust-nes-emulator Issue #25: NESTESTのメニュー画面が正しく表示されるようにする](https://github.com/kamiyaowl/rust-nes-emulator/issues/25) に大体書いてあるが、ひたすらlogを見ていってミスった実装を直しての繰り返しをしていた。
 
-適当なprojectを作って`/boards/Pynq-Z2/base/base.tcl`を実行するのだが、私の環境かWindowsのせいかわからないが作業Directoryが`~/AppData/....`あたりに飛ばされて解決できなかったのでIP Packageの登録だけ手動でやった。
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">進捗です（だめです <a href="https://t.co/gCXKF1StRW">pic.twitter.com/gCXKF1StRW</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1167871230998827008?ref_src=twsrc%5Etfw">August 31, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-以下の通りbase.tclをいじって、`/boards/ip`にいるIPは事前にVivadoのGUIから手動で追加しておいた。
+だんだん直って
 
-{% highlight text %}
-# set_property  ip_repo_paths  ../../ip [current_project]
-# update_ip_catalog
-{% endhighlight %}
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">わーい、nestestのメニューが出せるようになった <a href="https://t.co/iHdjgGL5SR">pic.twitter.com/iHdjgGL5SR</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1168127730451283968?ref_src=twsrc%5Etfw">September 1, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">☑base.tclのご機嫌をとった <a href="https://t.co/Qhpl487OmB">pic.twitter.com/Qhpl487OmB</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1221300155925716992?ref_src=twsrc%5Etfw">January 26, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+起動するようになった。（下にCompareしてるスクショが残ってた）
 
-あとはBlock Designのwrapperを作って合成を進める正規の手順でbitstreamが生成できた。
+ここで初めて気がついたがunofficial opcodeらしきものがあるらしい。それもすべて実装した。複数の命令の組み合わせか通常存在しないアドレッシングモードか、NOPかのいずれかな気がする。
 
-### ビルド生成物
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">rustでファミコンエミュ、進捗です(うれしい <a href="https://t.co/jMh5d4wZ2M">pic.twitter.com/jMh5d4wZ2M</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1168135665923420160?ref_src=twsrc%5Etfw">September 1, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-今のPynqのOverlayライブラリは`.bit`, `.hwh`, `.dtbo`(DeviceTreeが変わる場合のみ)を必要としているようだった。
+ボタンが押せなくてテストが実行できなかったのでボタン入力を実装。
 
-`<project-root>/<project>.runs/impl_1/<top_file_name>.bit`と`<project-root>/<project>.src/source_1/bd/base/hw_handoff/base.hwh`に配置されていたのでこれを利用した。
+ここもまた一発で動いてしまった。ここまで死ぬほど動かなかったので、嬉しさのあまりまぞくになるところだった。
 
-### PynqでのOverlay
+## リグレッションテスト導入
 
-先の生成物をPynqにコピーして、以下のコードをJupyterあたりで実行すれば無事同じように動作できた。
-overlay.pyとか周辺を読む限り、bitファイルのファイルパスをもじってhwhを取得しているようだった。
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">指定フレーム数進めて画像比較してボタン押させて～～～～のテスト環境整備した <a href="https://t.co/pFnnzPXXBT">pic.twitter.com/pFnnzPXXBT</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1168165217605308421?ref_src=twsrc%5Etfw">September 1, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-{% highlight python %}
-from pynq.overlays.base import BaseOverlay
-base = BaseOverlay("~/path/to/<top_file_name>.bit")
-{% endhighlight %}
+せっかく動いたのに、後の実装でぶっ壊れると嫌なのでテスト環境を整備した。
 
-<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">わーい、自前で生成し直したbitstreamでも昨日のADCの入力を取れるようになった！<a href="https://t.co/F985jGegW0">https://t.co/F985jGegW0</a> <a href="https://t.co/FJYQq5fW34">pic.twitter.com/FJYQq5fW34</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1221396938722926592?ref_src=twsrc%5Etfw">January 26, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+## 顔色が悪いPPU
 
-## 自作の高位合成IPをインプリする
+nestestしか動かしていなかったので興味本位で動かしたら顔色が悪い。顔色が悪いけど嬉しかった。
 
-[Github kamiyaowl/pynq_dsp_hls](https://github.com/kamiyaowl/pynq_dsp_hls)
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">顔色が悪いｗｗｗｗｗｗｗｗｗｗｗｗｗｗｗｗｗｗｗｗｗｗｗｗ <a href="https://t.co/BHIMhMEqBg">pic.twitter.com/BHIMhMEqBg</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1168166542510477313?ref_src=twsrc%5Etfw">September 1, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-割とここからが本題。Verilogを書く気分でもなかったのでVivado HLSで作ったデザインを先のデザインに追加して動作させる。
-正直`audio_codec_ctrl`に変わるものをまるごと作っても良かったが、既存のものを生かしていくのも大事なので割愛。
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">おおおお～～～～～～～～まじか！！！！！！！！！！！！顔色悪いし配管工来てないけど <a href="https://t.co/kclWNAxqck">pic.twitter.com/kclWNAxqck</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1168167098788405249?ref_src=twsrc%5Etfw">September 1, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-先程Pythonで行っていた受信データを送信レジスタに書き戻すだけの処理をHLSで行う。エフェクトではないのでどちらかというとまだオレオレDMAといった感じ。このエフェクトをBypassと呼ぶことにする。
+ファミコンには実際の表示領域4面分の描画空間(NameTable)が合って、その任意位置を変更できるスクロールレジスタが存在する。
 
-### 仕様検討
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">今日の進捗です（めげない心... <a href="https://t.co/EP85zkGJ0F">pic.twitter.com/EP85zkGJ0F</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1169280488885743616?ref_src=twsrc%5Etfw">September 4, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-まずはCPUから制御することも考慮して以下の仕様を検討した。
+実装したらこの有様...。
 
-* 読み書きするBaseAddrはCPUから設定可能
-* BaseAddrには`audio_codec_ctrl`のベースアドレスを指定することを想定
-* BypassデザインはAXI4 Master I/Fを持ち上記アドレス周辺へのデータR/Wを行う
-* Bypassの 開始/停止 もCPUから設定可能
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">マリオーーーーーー体がーーーーーーッッッッ！！！！！！！！（rust ファミコンエミュ進捗です <a href="https://t.co/ivnfDrIhmE">pic.twitter.com/ivnfDrIhmE</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170358592500686849?ref_src=twsrc%5Etfw">September 7, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-### C++での実装
+スクロールがない1面だけのゲームに焦点を絞って先にSpriteを実装した。体がばらばらになってしまった...
 
-まずは仕様どおりに動くC++の実装を行う。C++で実装すると`ap_int`/`ap_fixed`などが任意ビット幅で利用できるので便利。
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">スクロールもバグってるからマリオが死ぬほど面白い <a href="https://t.co/GdHVxQT3V8">pic.twitter.com/GdHVxQT3V8</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170361949160239104?ref_src=twsrc%5Etfw">September 7, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-{% highlight cpp %}
-#include <ap_int.h>
+スクロールのバグと合わせて新しいゲームが完成した。
 
-// from audio_adau1761.cpp 4byteごとなので4でわってある
-const ap_uint<32> I2S_DATA_RX_L_REG = 0x00;
-const ap_uint<32> I2S_DATA_RX_R_REG = 0x01;
-const ap_uint<32> I2S_DATA_TX_L_REG = 0x02;
-const ap_uint<32> I2S_DATA_TX_R_REG = 0x03;
-const ap_uint<32> I2S_STATUS_REG    = 0x04;
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">よっしゃあ～～～～～～～～～～～～～～～～～～～～～～～～～～～～～！！！！！！！！！！！！！ <a href="https://t.co/8HxnyfzHw8">pic.twitter.com/8HxnyfzHw8</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170372607574601728?ref_src=twsrc%5Etfw">September 7, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-void bypass(
-		volatile ap_uint<32>* physMemPtr, // AXI4MasterのPointer、basePhysAddrから+5*4byteアクセスする
-		ap_uint<32> basePhysAddr          // 読み出し先の物理ベースアドレス
-		){
+Spriteのバラバラ事件は表示反転の論理が逆になっていただけだった。
 
-	// 4byteごとに扱っているので治す
-	const ap_uint<32> addr = (basePhysAddr >> 2);// (/= 4)
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">やったー！rustで書いてるファミコンエミュでスプライトが表示できるようになったー！（<br>ドンキーコングのOPデモが正しく動くようになった！） <a href="https://t.co/zB1LjG6uXr">pic.twitter.com/zB1LjG6uXr</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170374917579132928?ref_src=twsrc%5Etfw">September 7, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-	// data_rdy_bitが立っていなければ処理しない
-	const ap_uint<32> status = physMemPtr[addr + I2S_STATUS_REG];
-	if (status) {
-		// L/R chのデータを取得
-		const ap_uint<32> lsrc = physMemPtr[addr + I2S_DATA_RX_L_REG];
-		const ap_uint<32> rsrc = physMemPtr[addr + I2S_DATA_RX_R_REG];
-		// 何かしらの音声処理
-		const ap_uint<32> ldst = lsrc;
-		const ap_uint<32> rdst = rsrc;
-		// L/R chのデータを設定
-		physMemPtr[addr + I2S_DATA_TX_L_REG] = ldst;
-		physMemPtr[addr + I2S_DATA_TX_R_REG] = rdst;
-	}
-}
-{% endhighlight %}
+ここまで来るとスクロールのないドンキーはそれっぽいゲームになっていた。
 
-特筆する必要のある処理はないが、physMemPtrが4byte単位で進むことに注意する。
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">Sprite背景透過できた <a href="https://t.co/PBTabChgUT">pic.twitter.com/PBTabChgUT</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170550384978300928?ref_src=twsrc%5Etfw">September 8, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-### C Simを書いておく
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">ドンキーコングは、あとはBGの属性テーブルで表示は正しくなりそう <a href="https://t.co/AJZYl24caV">pic.twitter.com/AJZYl24caV</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170551050702450694?ref_src=twsrc%5Etfw">September 8, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-最低限シミュレーションはしておきたいので書いた。気を使ったポイントはstatusが立っていないときはTXに何も書かないこと、basePhysAddrを書き換えるとアドレスオフセットをきちんと考慮できるとか。
+背景色の判定をきちんと実装したのでそれっぽくなってきた。
 
-{% highlight cpp %}
-#include <iostream>
-#include <cassert>
-#include <ap_int.h>
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">もう少し直した。続低テーブルの当て方を間違えていた <a href="https://t.co/w44MBt29Qt">pic.twitter.com/w44MBt29Qt</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170560625128300544?ref_src=twsrc%5Etfw">September 8, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-// from audio_adau1761.cpp 4byteごとなので4でわってある
-const ap_uint<32> I2S_DATA_RX_L_REG = 0x00;
-const ap_uint<32> I2S_DATA_RX_R_REG = 0x01;
-const ap_uint<32> I2S_DATA_TX_L_REG = 0x02;
-const ap_uint<32> I2S_DATA_TX_R_REG = 0x03;
-const ap_uint<32> I2S_STATUS_REG    = 0x04;
+属性テーブルの参照アドレスをミスっていたので修正したら、顔色はかなり良くなった。
 
-void bypass(
-		volatile ap_uint<32>* physMemPtr, // AXI4MasterのPointer、basePhysAddrから+5*4byteアクセスする
-		ap_uint<32> basePhysAddr // 読み出し先の物理ベースアドレス
-		);
+透明色処理が正しく実装されていないと、タイトル表示がこうなるのは正しい。
 
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">rustファミコンエミュ進捗です（けっこううれしい <a href="https://t.co/ySaYyMJD38">pic.twitter.com/ySaYyMJD38</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170563567344480256?ref_src=twsrc%5Etfw">September 8, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-#define TEST_BUF_SIZE (64)
+ドンキーコングはほぼ完動。
 
-typedef struct {
-	std::size_t basePhysAddr;
-	ap_uint<32> status;
-	ap_uint<32> lsrc;
-	ap_uint<32> rsrc;
-	ap_uint<32> ldst_expect; // lch 出力期待値
-	ap_uint<32> rdst_expect; // rch 出力期待値
-} BypassVector_t;
+## マリオ完動に向けて修正
 
-template<typename T, std::size_t S>
-std::size_t array_len(const T (&)[S]) {
-	return S;
-}
+ここまで来たら自分の理解度が深まったこともあり、画面出力と実装をにらめっこしてどこがおかしいか順に潰していった。結構エスパーっぽいデバッグだった気もする。
 
-int main(void) {
-	ap_uint<32> buf[TEST_BUF_SIZE] = {};
-	BypassVector_t vectors[] = {
-			{ 0x0, 0x0, 0xaa, 0x55, 0x0, 0x0 },
-			{ 0x0, 0x1, 0xaa, 0x55, 0xaa, 0x55 },
-			{ 0x10, 0x0, 0xaa, 0x55, 0x0, 0x0 },
-			{ 0x10, 0x1, 0xaa, 0x55, 0xaa, 0x55 },
-	};
-	for (std::size_t i = 0; i < array_len(vectors); i++) {
-		// 期待値をセット
-		const std::size_t baseIndex = vectors[i].basePhysAddr / 4;
-		buf[baseIndex + I2S_DATA_RX_L_REG] = vectors[i].lsrc;
-		buf[baseIndex + I2S_DATA_RX_R_REG] = vectors[i].rsrc;
-		buf[baseIndex + I2S_DATA_TX_L_REG] = 0x0;
-		buf[baseIndex + I2S_DATA_TX_R_REG] = 0x0;
-		buf[baseIndex + I2S_STATUS_REG] = vectors[i].status;
-		// テストする
-		bypass((volatile ap_uint<32>*)&buf,  static_cast<ap_uint<32>>(vectors[i].basePhysAddr));
-		// 結果を検証
-		assert(buf[baseIndex + I2S_DATA_TX_L_REG] == vectors[i].ldst_expect);
-		assert(buf[baseIndex + I2S_DATA_TX_R_REG] == vectors[i].rdst_expect);
-	}
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">これが本当のSuper Mario Bros.です（Pad入力は正常に入るようになった。あとはめげない心 <a href="https://t.co/QSd1uDbqMt">pic.twitter.com/QSd1uDbqMt</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170689415670198272?ref_src=twsrc%5Etfw">September 8, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-	return 0;
-}
-{% endhighlight %}
+風を感じていた。これはスクロールの値が8倍に適用されている。
 
-### 合成向けのpragmaを付与する
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">rustファミコンエミュ進捗です（もう3声くらいで遊べそう？ <a href="https://t.co/B3wKd5s2dJ">pic.twitter.com/B3wKd5s2dJ</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170735270871715840?ref_src=twsrc%5Etfw">September 8, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-ここが悩みポイントだが基本的に使用を満たせるように設定する。
+これは属性テーブルがスクロールに追従していないので、背景と色がずれている。
 
-* 開始/停止をCPUから設定可能→AXI Lite Slaveで書き込み可能にする
-* basePhysAddrをCPUから設定可能→関数のI/FをAXI4 Lite Slaveで設定可能にする
-* AXI4 Master I/Fを持ち上記アドレス周辺へのデータR/Wを行う→physMemPtrをAXI4 Masterに設定
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">やったー！スクロールがちゃんと動くようになった！！！前のやつは8px単位でスクロールしててかくかくしてる <a href="https://t.co/ztvnCvqurJ">pic.twitter.com/ztvnCvqurJ</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170935889066770438?ref_src=twsrc%5Etfw">September 9, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-特に2.項だが、関数I/Fを`s_axilite`に設定するとoffset=0に`ap_start`, `ap_done`, `ap_idle`, `ap_ready`, `auto_restart` bitを持ったレジスタが生成される。
-名前でおおよそ想像がつくが、`auto_restart`ビットを立てた状態で`ap_start`ビットを立ててあげればfreerunしてくれる。
+背景色処理をしていないので、隠しブロックが見えている。あとスクロールがカクカクしている。これはスクロール値の計算間違い。
 
-HLSのデザイン上でwhile無限ループを作ったり、Interfaceに`ap_none`に設定するような小細工は必要なかった。
+動画の最後で変死しているが、これはパックンフラワーが見えていない。
 
-{% highlight cpp %}
-void bypass(
-		volatile ap_uint<32>* physMemPtr, // AXI4MasterのPointer、basePhysAddrから+5*4byteアクセスする
-		ap_uint<32> basePhysAddr          // 読み出し先の物理ベースアドレス
-		){
-#pragma HLS INTERFACE s_axilite port=return
-#pragma HLS INTERFACE m_axi depth=32 port=physMemPtr
-#pragma HLS INTERFACE s_axilite port=basePhysAddr
-{% endhighlight %}
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">Sprite強制全面表示。完全に理解した <a href="https://t.co/64SDIaechX">pic.twitter.com/64SDIaechX</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170939139518160896?ref_src=twsrc%5Etfw">September 9, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
+これはわかりやすい。
 
-参考までに、これは最終的に以下のようなI/Fで見えるようになる。`s_axilite`はbundleを明示しなければポートがまとめられる。
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">直した <a href="https://t.co/Cy8L8kxVe4">pic.twitter.com/Cy8L8kxVe4</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170949923484815361?ref_src=twsrc%5Etfw">September 9, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-{% highlight text %}
-RegisterMap {
-  CTRL = Register(AP_START=1, AP_DONE=1, AP_IDLE=0, AP_READY=0, RESERVED_1=0, AUTO_RESTART=1, RESERVED_2=0),
-  GIER = Register(Enable=0, RESERVED=0),
-  IP_IER = Register(CHAN0_INT_EN=0, CHAN1_INT_EN=0, RESERVED=0),
-  IP_ISR = Register(CHAN0_INT_ST=0, CHAN1_INT_ST=0, RESERVED=0),
-  basePhysAddr_V = Register(basePhysAddr_V=1136656384)
-}
-{% endhighlight %}
+かなり現物に近づいた。あとは黒い部分だけ。これは[背景色, 背景Sprite, BG, 全面Sprite]とあって
+透明色の黒色が選ばれていたら後ろの色（e.g.空の色）を出してあげるのが正解。
 
-C/RTL CoSimも動かしてみたが、想像通り動いてました。ぐらいの情報しかないので割愛。
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">やったー！！！！！！！！ウオオオオオーーーーーーーーーーー！！！！！！！！！！！！！！！！！ <a href="https://t.co/RUaa0l0t9R">pic.twitter.com/RUaa0l0t9R</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170954266313281536?ref_src=twsrc%5Etfw">September 9, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">まぁとりあえず波形出しとけばインスタ映えしそうだから意味もなく貼ります <a href="https://t.co/BpheVoqcB9">pic.twitter.com/BpheVoqcB9</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1221841014169595907?ref_src=twsrc%5Etfw">January 27, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">rustファミコンエミュ進捗です（すごくうれしい<a href="https://t.co/VvBct6k8EX">https://t.co/VvBct6k8EX</a> <a href="https://t.co/fdJ1xN1JUL">pic.twitter.com/fdJ1xN1JUL</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1170963720492576769?ref_src=twsrc%5Etfw">September 9, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-最後にIP Packageとして出力すればVivado HLSでの作業は終了。
+死ぬほど嬉しかった。
 
-### ベースデザインに取り込む
+## 所感
 
-まずは最初に作ったプロジェクトにVivado HLSで出力したIPのディレクトリも設定して、IP Catalogから見えるようにする。
-そして配置する。
+~~いかがでしたか?~~ とりあえずマリオが遊べるまでのツイートをまとめた。最近WebAssemblyに吐いてブラウザでも遊べるようにしたので興味あれば遊んでみていただけると嬉しい限り。
 
-この際にCPUからもアクセスできるように考慮する必要があるので以下の具合で検討した。
-このモチベは出力している波形をPython上で書いたり、先程Pythonで作ったBypass実装を動かしたりするため。
+[rust-nes-emulator.netlify.com](https://rust-nes-emulator.netlify.com/)
 
+### Rustを使ってみて
 
-<div class="mermaid">
-graph LR;
-    CPU-->Interconnect;
-    CPU-->bypass;
-    bypass-->Interconnect;
-    Interconnect-->audio_codec_ctrl;
-</div>
+WebAssembly版のポーティングするjavascriptを少し書いていただけでバグまみれになったので、私はRustがすごい良い言語だと感じる。以下紹介する
 
-<blockquote class="twitter-tweet"><p lang="und" dir="ltr"><a href="https://t.co/zOg2AnUQhg">pic.twitter.com/zOg2AnUQhg</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1222560653606412288?ref_src=twsrc%5Etfw">January 29, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+### 意図しない型変換、Overflow/Underflowなどはすぐに原因がわかった
 
+異なる型の演算はそもそもコンパイルエラー、Overflow/Underflowは実装者が明示しないと実行時エラー。
+なんかおかしい→調べたらOverflowだった。みたいなのがなかった。（すぐに場所がわかった）
 
-### Base Addressの設定
+### 書き換え可能な参照をばらまけないので、怪しい設計がコンパイル通らない
 
-CPUからは新たにbypassが、bypass_0からはaudio_codec_ctrlが見えるようになっているのでAXI4でのベースアドレスを指定してあげる。
-基本的にはCPUから見えるベースアドレスと合わせることにした。これはBlock DesignのAddress Editorから設定できる。
+別の場所からフラグを書き換えるような行儀の悪いことはそもそもコンパイルエラー。
 
-あとは合成して生成物を準備する
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">wasmにしてなんか挙動がおかしかったので、console.logデバグしていたがROMを読み込む前にエミュを開始していたっぽい <a href="https://t.co/w91y01SxEG">pic.twitter.com/w91y01SxEG</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1173462900184190976?ref_src=twsrc%5Etfw">September 16, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-### ベースデザインのDevice Treeを入手
+ありがとうRust...。私はか弱い凡才なのでコンパイラに守られたい。
 
-bypass_0というペリフェラルを追加したので、FPGAに新しいbitstreamを書き込めば該当する物理アドレスにR/Wをかければ使うことができる。
-ベアメタルなら該当のアドレスにアクセスをかければよいのだが、PynqではLinuxが動いているので行儀よくOSに教えてあげる必要がある。
+### 速い、wasmにしても速い
 
-これにはDevice Treeを記述して、これをdtc(Device Tree Compiler)で`.dtb`に変換してあげる必要がある。
-通常であればBoot時に読み出せる場所に置く必要があるが、Device Tree OverlayをサポートしたOSであれば必ずしも起動時にロードする必要はない。
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">これがwasmの本気ッッッーーー！！！！（計算ミスっだだけです。しかもまだ余裕ある <a href="https://t.co/DsjzwXuxVT">pic.twitter.com/DsjzwXuxVT</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1173572680106168320?ref_src=twsrc%5Etfw">September 16, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
-まずはPYNQ-Z2で動いているDevice Treeを入手する。パット見リポジトリにはないので、PYNQ-Z2のボードにsshして以下コマンドで入手した。
-
-{% highlight text %}
-$ sudo apt update && sudo apt install -y device-tree-compiler
-$ dtc -I fs /sys/firmware/devicetree/base
-{% endhighlight %}
-
-面倒な人はこちら [pynq-z2-base-origin.dts](https://github.com/kamiyaowl/pynq_dsp_hw/blob/2b35dc8b955dae146cd0319f336f31aff6e538d2/dist/pynq-z2-base-origin.dts)
-
-### Device Treeへの追記
-
-今回作成したbypassデザインは、特に特殊なアクセスが要求されないのでuio(Userspace I/O)のドライバを当てることにした。
-なにか特殊な初期化やら設定やら動きが必要であれば、自分でDevice Driverを書くことになる。
-
-{% highlight text %}
-bypass@40010000 {
-    compatible = "generic-uio";
-    reg = <0x40010000 0x10000>;
-};
-{% endhighlight %}
-
-`reg`には、HLSのAddress Editorで設定した値を参考に記述する。これでLinuxからbypassの存在を知ることができ、uio経由でアクセスが可能になる。
-
-### Device Tree Blobへ戻す
-
-作成した`Device Tree.dts`を`.dtb`ファイルにする。Pynqのライブラリ上は厳密に`.dtbo`としていたのでこれに合わせた。
-`.bit`ファイルとファイル名を合わせておく
-
-{% highlight sh %}
-$ dtc -I dts -O dtb dst.dtbo src.dts
-{% endhighlight %}
-
-### 動作確認
-
-生成した`.bit`, `.hwh`, `.dtbo`をまとめてPynqに配置する。
-
-<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">†Device Tree Overlayエグゾディア† <a href="https://t.co/9lIcPj121R">pic.twitter.com/9lIcPj121R</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1222898771698147329?ref_src=twsrc%5Etfw">January 30, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
-
-あとはPynqのライブラリがかなりいい感じに展開してくれるので、bypassの`physMemAddr`設定を行い`ap_start`, `auto_restart`を書きに行けば動作するはず。
-
-あと、Overlayの引数は`.dtbo`ファイルは明示しないと読んでくれなさそうだった。
-`audio_codec_ctrl`の設定と合わせて以下の通りだった。
-
-{% highlight python %}
-from pynq.overlays.base import BaseOverlay
-base = BaseOverlay(bitfile='/home/xilinx/dist/base_wrapper.bit', dtbo='/home/xilinx/dist/base_wrapper.dtbo', download=True)
-
-# Line入力を有効化
-
-pAudio = base.audio
-pAudio.select_line_in() # line入力を使う
-
-# 自作HLSライブラリを設定する
-bypass = base.bypass_0
-offset_basePhyisAddr = bypass.register_map.basePhysAddr_V.address
-offset_ctrl          = bypass.register_map.CTRL.address
-
-# Bypassの読み書きのベースアドレスを指定
-
-bypass.write(offset=offset_basePhyisAddr, value=pAudio.mmio.base_addr)
-# HLSのモジュールを開始させる
-
-bypass.write(offset=offset_ctrl, value=0x81) # AUTO_RESTART, AP_START
-# 設定内容を表示
-
-print(bypass.register_map)
-{% endhighlight %}
-
-これで最初のツイートにある音声Bypassを自作IPから行うことができた。
+流石にここまで早くなると思ってなかった。3.6msか...。
 
 ## 終わりに
 
-結構楽しい。
-
-### PYNQに関して
-
-Vivadoの使い方やらLinuxのでのDeviceの扱いなどを最低限知っていないといけないので、「Pythonだけで～」というのはちょっと厳しいというのが本音。(他人のデザインを使うなら話は別)
-だが、Device Tree OverlayやPynqのライブラリのおかげでZynqでBootさせるOSのconfigurationで試行錯誤する時間がごっそり短縮できる点は本当に素晴らしいと思う。（本当につらい、時間もかかるし）
-
-### Vivado HLSに関して
-
-CPUから制御する必要のあるIPだと残念ながらAXI I/Fを持つ実装を避けることはできない。しかしAXI4のI/Fが複数あるようなデザインをRTLで書くのは初心者でなくてもなかなかつらいものがある。
-
-Vivado HLSは関数の引数にディレクティブを指定するだけで上記を達成できるのがかなり嬉しい。今回は触れなかったが引数の値をそのままGPIOとして外に出したりもできる。
-なので`ap_uint<N>`の任意ビット幅指定の変数で公開すれば、何かしらの制御に使ったりすることももちろんできる。
-
-(対象のLEがカツカツなデバイスでなければ)とりあえずFPGAに興味がある人などでも試すのは大いにありだと感じる。
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">「この件、意外と反響がある。もともとやるつもりではいたがまともに考えないと。」の顔 <a href="https://t.co/TwAnSKHAbr">pic.twitter.com/TwAnSKHAbr</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1173586537444864003?ref_src=twsrc%5Etfw">September 16, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
