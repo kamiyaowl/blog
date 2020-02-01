@@ -230,3 +230,13 @@ WebAssembly版のポーティングするjavascriptを少し書いていただ�
 ## 終わりに
 
 <blockquote class="twitter-tweet"><p lang="ja" dir="ltr">「この件、意外と反響がある。もともとやるつもりではいたがまともに考えないと。」の顔 <a href="https://t.co/TwAnSKHAbr">pic.twitter.com/TwAnSKHAbr</a></p>&mdash; kamiya (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1173586537444864003?ref_src=twsrc%5Etfw">September 16, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+
+---
+
+2020/02/02 追記
+
+ちゃんと本に書きました、当日ご購入いただいた方/DL販売でご購入いただいた方ありがとうございました。
+以下に購入リンクについてまとめてあります、もしよろしければ。
+
+[コミックマーケット97にLogiClover Vol.1を出展しました - LogiClover開発ブログ](http://logiclover.hatenablog.jp/entry/2019/12/31/213831)
