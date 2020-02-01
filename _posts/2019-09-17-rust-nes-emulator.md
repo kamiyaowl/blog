@@ -82,7 +82,44 @@ ADAU1761というADC/DACの乗った俗に言うCODECが実装されており、
 新しい関数I/Fを生やすのも面倒なので、Line入力に設定した時点で上記設定をするように修正した。
 これでPythonからでも受信レジスタの値を送信レジスタに書いてあげればループバックが実現できる。
 
-<script src="https://gist.github.com/kamiyaowl/8d87cd1386e08b2ef9adb54d76a8bdb9.js"></script>
+{% highlight cpp %}
+/******************************************************************************
+ * Function to select LINE_IN as input.
+ * @param  iic_index is the i2c index in /dev list.
+ * @return none.
+ *****************************************************************************/
+extern "C" void select_line_in(int iic_index) {
+    int iic_fd;
+    iic_fd = setI2C(iic_index, IIC_SLAVE_ADDR);
+    if (iic_fd < 0) {
+        printf("Unable to set I2C %d.\n", iic_index);
+    }
+
+    // Mixer 1  (left channel)
+    write_audio_reg(R4_RECORD_MIXER_LEFT_CONTROL_0, 0x01, iic_fd);
+    // Enable LAUX (MX1AUXG)
+    write_audio_reg(R5_RECORD_MIXER_LEFT_CONTROL_1, 0x07, iic_fd);
+
+    // Mixer 2
+    write_audio_reg(R6_RECORD_MIXER_RIGHT_CONTROL_0, 0x01, iic_fd);
+    // Enable RAUX (MX2AUXG)
+    write_audio_reg(R7_RECORD_MIXER_RIGHT_CONTROL_1, 0x07, iic_fd);
+
++   /* ついでに出力も使えるようにする */
+
++   // Enable Mixer3 and Mixer4
++   write_audio_reg(R22_PLAYBACK_MIXER_LEFT_CONTROL_0, 0x21, iic_fd);
++   write_audio_reg(R24_PLAYBACK_MIXER_RIGHT_CONTROL_0, 0x41, iic_fd);
++   // Enable Left/Right Headphone out
++   write_audio_reg(R29_PLAYBACK_HEADPHONE_LEFT_VOLUME_CONTROL, 0xE7, iic_fd);
++   write_audio_reg(R30_PLAYBACK_HEADPHONE_RIGHT_VOLUME_CONTROL, 0xE7, iic_fd);
+
+
+    if (unsetI2C(iic_fd) < 0) {
+        printf("Unable to unset I2C %d.\n", iic_index);
+    }
+}
+{% endhighlight %}
 
 ## PYNQ-Z2のベースデザインを手動でビルドする
 
@@ -92,7 +129,7 @@ ADAU1761というADC/DACの乗った俗に言うCODECが実装されており、
 
 以下の通りbase.tclをいじって、`/boards/ip`にいるIPは事前にVivadoのGUIから手動で追加しておいた。
 
-```diff
+{% highlight diff %}
 ################################################################
 # START
 ################################################################
@@ -118,7 +155,7 @@ if { $list_projs eq "" } {
 # CHANGE DESIGN NAME HERE
 variable design_name
 set design_name base
-```
+{% endhighlight %}
 
 <blockquote class="twitter-tweet"><p lang="ja" dir="ltr">☑base.tclのご機嫌をとった <a href="https://t.co/Qhpl487OmB">pic.twitter.com/Qhpl487OmB</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1221300155925716992?ref_src=twsrc%5Etfw">January 26, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
@@ -135,10 +172,10 @@ set design_name base
 先の生成物をPynqにコピーして、以下のコードをJupyterあたりで実行すれば無事同じように動作できた。
 overlay.pyとか周辺を読む限り、bitファイルのファイルパスをもじってhwhを取得しているようだった。
 
-```python
+{% highlight python %}
 from pynq.overlays.base import BaseOverlay
 base = BaseOverlay("~/path/to/<top_file_name>.bit")
-```
+{% endhighlight %}
 
 <blockquote class="twitter-tweet"><p lang="ja" dir="ltr">わーい、自前で生成し直したbitstreamでも昨日のADCの入力を取れるようになった！<a href="https://t.co/F985jGegW0">https://t.co/F985jGegW0</a> <a href="https://t.co/FJYQq5fW34">pic.twitter.com/FJYQq5fW34</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1221396938722926592?ref_src=twsrc%5Etfw">January 26, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
@@ -164,7 +201,7 @@ base = BaseOverlay("~/path/to/<top_file_name>.bit")
 
 まずは仕様どおりに動くC++の実装を行う。C++で実装すると`ap_int`/`ap_fixed`などが任意ビット幅で利用できるので便利。
 
-```c++
+{% highlight cpp %}
 #include <ap_int.h>
 
 // from audio_adau1761.cpp 4byteごとなので4でわってある
@@ -196,7 +233,7 @@ void bypass(
 		physMemPtr[addr + I2S_DATA_TX_R_REG] = rdst;
 	}
 }
-```
+{% endhighlight %}
 
 特筆する必要のある処理はないが、physMemPtrが4byte単位で進むことに注意する。
 
@@ -204,7 +241,7 @@ void bypass(
 
 最低限シミュレーションはしておきたいので書いた。気を使ったポイントはstatusが立っていないときはTXに何も書かないこと、basePhysAddrを書き換えるとアドレスオフセットをきちんと考慮できるとか。
 
-```c++
+{% highlight cpp %}
 #include <iostream>
 #include <cassert>
 #include <ap_int.h>
@@ -263,7 +300,7 @@ int main(void) {
 
 	return 0;
 }
-```
+{% endhighlight %}
 
 ### 合成向けのpragmaを付与する
 
@@ -278,7 +315,7 @@ int main(void) {
 
 HLSのデザイン上でwhile無限ループを作ったり、Interfaceに`ap_none`に設定するような小細工は必要なかった。
 
-```c++
+{% highlight cpp %}
 void bypass(
 		volatile ap_uint<32>* physMemPtr, // AXI4MasterのPointer、basePhysAddrから+5*4byteアクセスする
 		ap_uint<32> basePhysAddr          // 読み出し先の物理ベースアドレス
@@ -286,11 +323,12 @@ void bypass(
 #pragma HLS INTERFACE s_axilite port=return
 #pragma HLS INTERFACE m_axi depth=32 port=physMemPtr
 #pragma HLS INTERFACE s_axilite port=basePhysAddr
-```
+{% endhighlight %}
+
 
 参考までに、これは最終的に以下のようなI/Fで見えるようになる。`s_axilite`はbundleを明示しなければポートがまとめられる。
 
-```
+{% highlight text %}
 RegisterMap {
   CTRL = Register(AP_START=1, AP_DONE=1, AP_IDLE=0, AP_READY=0, RESERVED_1=0, AUTO_RESTART=1, RESERVED_2=0),
   GIER = Register(Enable=0, RESERVED=0),
@@ -298,7 +336,7 @@ RegisterMap {
   IP_ISR = Register(CHAN0_INT_ST=0, CHAN1_INT_ST=0, RESERVED=0),
   basePhysAddr_V = Register(basePhysAddr_V=1136656384)
 }
-```
+{% endhighlight %}
 
 C/RTL CoSimも動かしてみたが、想像通り動いてました。ぐらいの情報しかないので割愛。
 
@@ -315,13 +353,13 @@ C/RTL CoSimも動かしてみたが、想像通り動いてました。ぐらい
 このモチベは出力している波形をPython上で書いたり、先程Pythonで作ったBypass実装を動かしたりするため。
 
 
-```mermaid
+<div class="mermaid">
 graph LR;
     CPU-->Interconnect;
     CPU-->bypass;
     bypass-->Interconnect;
     Interconnect-->audio_codec_ctrl;
-```
+</div>
 
 <blockquote class="twitter-tweet"><p lang="und" dir="ltr"><a href="https://t.co/zOg2AnUQhg">pic.twitter.com/zOg2AnUQhg</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1222560653606412288?ref_src=twsrc%5Etfw">January 29, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
@@ -343,10 +381,10 @@ bypass_0というペリフェラルを追加したので、FPGAに新しいbitst
 
 まずはPYNQ-Z2で動いているDevice Treeを入手する。パット見リポジトリにはないので、PYNQ-Z2のボードにsshして以下コマンドで入手した。
 
-```sh
+{% highlight text %}
 $ sudo apt update && sudo apt install -y device-tree-compiler
 $ dtc -I fs /sys/firmware/devicetree/base
-```
+{% endhighlight %}
 
 面倒な人はこちら [pynq-z2-base-origin.dts](https://github.com/kamiyaowl/pynq_dsp_hw/blob/2b35dc8b955dae146cd0319f336f31aff6e538d2/dist/pynq-z2-base-origin.dts)
 
@@ -355,12 +393,12 @@ $ dtc -I fs /sys/firmware/devicetree/base
 今回作成したbypassデザインは、特に特殊なアクセスが要求されないのでuio(Userspace I/O)のドライバを当てることにした。
 なにか特殊な初期化やら設定やら動きが必要であれば、自分でDevice Driverを書くことになる。
 
-```dts
+{% highlight text %}
 bypass@40010000 {
     compatible = "generic-uio";
     reg = <0x40010000 0x10000>;
 };
-```
+{% endhighlight %}
 
 `reg`には、HLSのAddress Editorで設定した値を参考に記述する。これでLinuxからbypassの存在を知ることができ、uio経由でアクセスが可能になる。
 
@@ -369,9 +407,9 @@ bypass@40010000 {
 作成した`Device Tree.dts`を`.dtb`ファイルにする。Pynqのライブラリ上は厳密に`.dtbo`としていたのでこれに合わせた。
 `.bit`ファイルとファイル名を合わせておく
 
-```sh
+{% highlight sh %}
 $ dtc -I dts -O dtb dst.dtbo src.dts
-```
+{% endhighlight %}
 
 ### 動作確認
 
@@ -384,7 +422,7 @@ $ dtc -I dts -O dtb dst.dtbo src.dts
 あと、Overlayの引数は`.dtbo`ファイルは明示しないと読んでくれなさそうだった。
 `audio_codec_ctrl`の設定と合わせて以下の通りだった。
 
-```python
+{% highlight python %}
 from pynq.overlays.base import BaseOverlay
 base = BaseOverlay(bitfile='/home/xilinx/dist/base_wrapper.bit', dtbo='/home/xilinx/dist/base_wrapper.dtbo', download=True)
 
@@ -403,7 +441,7 @@ bypass.write(offset=offset_basePhyisAddr, value=pAudio.mmio.base_addr)
 bypass.write(offset=offset_ctrl, value=0x81) # AUTO_RESTART, AP_START
 # 設定内容を表示
 print(bypass.register_map)
-```
+{% endhighlight %}
 
 これで最初のツイートにある音声Bypassを自作IPから行うことができた。
 
