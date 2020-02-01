@@ -17,12 +17,17 @@ categories:
 
 [http://www.tul.com.tw/ProductsPYNQ-Z2.html](http://www.tul.com.tw/ProductsPYNQ-Z2.html)
 
+
 PYNQ-Z1が出たときはかなりオーディオはチープというイメージを受けていたので、これには感動してつい購入してしまった。
 これを使いこなすために調べた内容と、音をBypassするイメージをPYNQのベースデザインに追加でインプリして動かした備忘録である。
 ググれば比較的ある情報にはあまり触れてないので適宜調べるかdocを参照してほしい。
 
 
-<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">やったーー！！！PYNQ-Z2にVivado HLSで作った音をバイパスするだけのサンプル（後々エフェクトとか実装したい思い）をインプリして、Pythonから開始停止できるようになった！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！ <a href="https://t.co/ukwhZ5pleR">pic.twitter.com/ukwhZ5pleR</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1222908633396072453?ref_src=twsrc%5Etfw">January 30, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">何も伝わらないので概要です <a href="https://t.co/TGOYiNxgKF">pic.twitter.com/TGOYiNxgKF</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1222910292125814790?ref_src=twsrc%5Etfw">January 30, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+実行したJupyter Notebook
+
+[Github kamiyaowl/pynq_dsp_hw/dist/bypass/Bypass.ipynb](https://github.com/kamiyaowl/pynq_dsp_hw/blob/2b35dc8b955dae146cd0319f336f31aff6e538d2/dist/bypass/Bypass.ipynb)
 
 ## PYNQを立ち上げる
 
@@ -62,7 +67,7 @@ Jupyterの自動起動はsystemdに登録されているだけ
 
 自分でいじったライブラリrepoに差し替えたりが少しやりづらいなぁと感じたり感じなかったり...
 
-### Audio Codecの実装
+### Audio Codecの実装確認
 
 ADAU1761というADC/DACの乗った俗に言うCODECが実装されており、I2SとI2CがFPGAと直結されていた。
 `/boards/ip/audio_codec_ctrl`に実装があるが、AXI4経由で先頭から4byteずつ`RX_L`, `RX_R`, `TX_L`, `TX_R`, `Status`が公開されていた。
@@ -83,7 +88,7 @@ ADAU1761というADC/DACの乗った俗に言うCODECが実装されており、
 
 まずは既存のデザインを自力で論理合成してみる。現在時点ではVivado 2019.1向けに書かれたtclなので2019.1を入れた。
 
-適当なprojectを作って`/boards/Pynq-Z2/base/base.tcl`を実行するのだが、私の環境かWindowsかわからないが作業Directoryが`~/AppData/....`あたりに飛ばされて解決できなかったのでIP Packageの登録だけ手動でやった。
+適当なprojectを作って`/boards/Pynq-Z2/base/base.tcl`を実行するのだが、私の環境かWindowsのせいかわからないが作業Directoryが`~/AppData/....`あたりに飛ばされて解決できなかったのでIP Packageの登録だけ手動でやった。
 
 以下の通りbase.tclをいじって、`/boards/ip`にいるIPは事前にVivadoのGUIから手動で追加しておいた。
 
@@ -136,3 +141,286 @@ base = BaseOverlay("~/path/to/<top_file_name>.bit")
 ```
 
 <blockquote class="twitter-tweet"><p lang="ja" dir="ltr">わーい、自前で生成し直したbitstreamでも昨日のADCの入力を取れるようになった！<a href="https://t.co/F985jGegW0">https://t.co/F985jGegW0</a> <a href="https://t.co/FJYQq5fW34">pic.twitter.com/FJYQq5fW34</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1221396938722926592?ref_src=twsrc%5Etfw">January 26, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+## 自作の高位合成IPをインプリする
+
+[Github kamiyaowl/pynq_dsp_hls](https://github.com/kamiyaowl/pynq_dsp_hls)
+
+割とここからが本題。Verilogを書く気分でもなかったのでVivado HLSで作ったデザインを先のデザインに追加して動作させる。
+正直`audio_codec_ctrl`に変わるものをまるごと作っても良かったが、既存のものを生かしていくのも大事なので割愛。
+
+先程Pythonで行っていた受信データを送信レジスタに書き戻すだけの処理をHLSで行う。エフェクトではないのでどちらかというとまだオレオレDMAといった感じ。このエフェクトをBypassと呼ぶことにする。
+
+### 仕様検討
+
+まずはCPUから制御することも考慮して以下の仕様を検討した。
+
+* 読み書きするBaseAddrはCPUから設定可能
+* BaseAddrには`audio_codec_ctrl`のベースアドレスを指定することを想定
+* BypassデザインはAXI4 Master I/Fを持ち上記アドレス周辺へのデータR/Wを行う
+* Bypassの 開始/停止 もCPUから設定可能
+
+### C++での実装
+
+まずは仕様どおりに動くC++の実装を行う。C++で実装すると`ap_int`/`ap_fixed`などが任意ビット幅で利用できるので便利。
+
+```c++
+#include <ap_int.h>
+
+// from audio_adau1761.cpp 4byteごとなので4でわってある
+const ap_uint<32> I2S_DATA_RX_L_REG = 0x00;
+const ap_uint<32> I2S_DATA_RX_R_REG = 0x01;
+const ap_uint<32> I2S_DATA_TX_L_REG = 0x02;
+const ap_uint<32> I2S_DATA_TX_R_REG = 0x03;
+const ap_uint<32> I2S_STATUS_REG    = 0x04;
+
+void bypass(
+		volatile ap_uint<32>* physMemPtr, // AXI4MasterのPointer、basePhysAddrから+5*4byteアクセスする
+		ap_uint<32> basePhysAddr          // 読み出し先の物理ベースアドレス
+		){
+
+	// 4byteごとに扱っているので治す
+	const ap_uint<32> addr = (basePhysAddr >> 2);// (/= 4)
+
+	// data_rdy_bitが立っていなければ処理しない
+	const ap_uint<32> status = physMemPtr[addr + I2S_STATUS_REG];
+	if (status) {
+		// L/R chのデータを取得
+		const ap_uint<32> lsrc = physMemPtr[addr + I2S_DATA_RX_L_REG];
+		const ap_uint<32> rsrc = physMemPtr[addr + I2S_DATA_RX_R_REG];
+		// 何かしらの音声処理
+		const ap_uint<32> ldst = lsrc;
+		const ap_uint<32> rdst = rsrc;
+		// L/R chのデータを設定
+		physMemPtr[addr + I2S_DATA_TX_L_REG] = ldst;
+		physMemPtr[addr + I2S_DATA_TX_R_REG] = rdst;
+	}
+}
+```
+
+特筆する必要のある処理はないが、physMemPtrが4byte単位で進むことに注意する。
+
+### C Simを書いておく
+
+最低限シミュレーションはしておきたいので書いた。気を使ったポイントはstatusが立っていないときはTXに何も書かないこと、basePhysAddrを書き換えるとアドレスオフセットをきちんと考慮できるとか。
+
+```c++
+#include <iostream>
+#include <cassert>
+#include <ap_int.h>
+
+// from audio_adau1761.cpp 4byteごとなので4でわってある
+const ap_uint<32> I2S_DATA_RX_L_REG = 0x00;
+const ap_uint<32> I2S_DATA_RX_R_REG = 0x01;
+const ap_uint<32> I2S_DATA_TX_L_REG = 0x02;
+const ap_uint<32> I2S_DATA_TX_R_REG = 0x03;
+const ap_uint<32> I2S_STATUS_REG    = 0x04;
+
+void bypass(
+		volatile ap_uint<32>* physMemPtr, // AXI4MasterのPointer、basePhysAddrから+5*4byteアクセスする
+		ap_uint<32> basePhysAddr // 読み出し先の物理ベースアドレス
+		);
+
+
+#define TEST_BUF_SIZE (64)
+
+typedef struct {
+	std::size_t basePhysAddr;
+	ap_uint<32> status;
+	ap_uint<32> lsrc;
+	ap_uint<32> rsrc;
+	ap_uint<32> ldst_expect; // lch 出力期待値
+	ap_uint<32> rdst_expect; // rch 出力期待値
+} BypassVector_t;
+
+template<typename T, std::size_t S>
+std::size_t array_len(const T (&)[S]) {
+	return S;
+}
+
+int main(void) {
+	ap_uint<32> buf[TEST_BUF_SIZE] = {};
+	BypassVector_t vectors[] = {
+			{ 0x0, 0x0, 0xaa, 0x55, 0x0, 0x0 },
+			{ 0x0, 0x1, 0xaa, 0x55, 0xaa, 0x55 },
+			{ 0x10, 0x0, 0xaa, 0x55, 0x0, 0x0 },
+			{ 0x10, 0x1, 0xaa, 0x55, 0xaa, 0x55 },
+	};
+	for (std::size_t i = 0; i < array_len(vectors); i++) {
+		// 期待値をセット
+		const std::size_t baseIndex = vectors[i].basePhysAddr / 4;
+		buf[baseIndex + I2S_DATA_RX_L_REG] = vectors[i].lsrc;
+		buf[baseIndex + I2S_DATA_RX_R_REG] = vectors[i].rsrc;
+		buf[baseIndex + I2S_DATA_TX_L_REG] = 0x0;
+		buf[baseIndex + I2S_DATA_TX_R_REG] = 0x0;
+		buf[baseIndex + I2S_STATUS_REG] = vectors[i].status;
+		// テストする
+		bypass((volatile ap_uint<32>*)&buf,  static_cast<ap_uint<32>>(vectors[i].basePhysAddr));
+		// 結果を検証
+		assert(buf[baseIndex + I2S_DATA_TX_L_REG] == vectors[i].ldst_expect);
+		assert(buf[baseIndex + I2S_DATA_TX_R_REG] == vectors[i].rdst_expect);
+	}
+
+	return 0;
+}
+```
+
+### 合成向けのpragmaを付与する
+
+ここが悩みポイントだが基本的に使用を満たせるように設定する。
+
+* 開始/停止をCPUから設定可能→AXI Lite Slaveで書き込み可能にする
+* basePhysAddrをCPUから設定可能→関数のI/FをAXI4 Lite Slaveで設定可能にする
+* AXI4 Master I/Fを持ち上記アドレス周辺へのデータR/Wを行う→physMemPtrをAXI4 Masterに設定
+
+特に2.項だが、関数I/Fを`s_axilite`に設定するとoffset=0に`ap_start`, `ap_done`, `ap_idle`, `ap_ready`, `auto_restart` bitを持ったレジスタが生成される。
+名前でおおよそ想像がつくが、`auto_restart`ビットを立てた状態で`ap_start`ビットを立ててあげればfreerunしてくれる。
+
+HLSのデザイン上でwhile無限ループを作ったり、Interfaceに`ap_none`に設定するような小細工は必要なかった。
+
+```c++
+void bypass(
+		volatile ap_uint<32>* physMemPtr, // AXI4MasterのPointer、basePhysAddrから+5*4byteアクセスする
+		ap_uint<32> basePhysAddr          // 読み出し先の物理ベースアドレス
+		){
+#pragma HLS INTERFACE s_axilite port=return
+#pragma HLS INTERFACE m_axi depth=32 port=physMemPtr
+#pragma HLS INTERFACE s_axilite port=basePhysAddr
+```
+
+参考までに、これは最終的に以下のようなI/Fで見えるようになる。`s_axilite`はbundleを明示しなければポートがまとめられる。
+
+```
+RegisterMap {
+  CTRL = Register(AP_START=1, AP_DONE=1, AP_IDLE=0, AP_READY=0, RESERVED_1=0, AUTO_RESTART=1, RESERVED_2=0),
+  GIER = Register(Enable=0, RESERVED=0),
+  IP_IER = Register(CHAN0_INT_EN=0, CHAN1_INT_EN=0, RESERVED=0),
+  IP_ISR = Register(CHAN0_INT_ST=0, CHAN1_INT_ST=0, RESERVED=0),
+  basePhysAddr_V = Register(basePhysAddr_V=1136656384)
+}
+```
+
+C/RTL CoSimも動かしてみたが、想像通り動いてました。ぐらいの情報しかないので割愛。
+
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">まぁとりあえず波形出しとけばインスタ映えしそうだから意味もなく貼ります <a href="https://t.co/BpheVoqcB9">pic.twitter.com/BpheVoqcB9</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1221841014169595907?ref_src=twsrc%5Etfw">January 27, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+最後にIP Packageとして出力すればVivado HLSでの作業は終了。
+
+### ベースデザインに取り込む
+
+まずは最初に作ったプロジェクトにVivado HLSで出力したIPのディレクトリも設定して、IP Catalogから見えるようにする。
+そして配置する。
+
+この際にCPUからもアクセスできるように考慮する必要があるので以下の具合で検討した。
+このモチベは出力している波形をPython上で書いたり、先程Pythonで作ったBypass実装を動かしたりするため。
+
+
+```mermaid
+graph LR;
+    CPU-->Interconnect;
+    CPU-->bypass;
+    bypass-->Interconnect;
+    Interconnect-->audio_codec_ctrl;
+```
+
+<blockquote class="twitter-tweet"><p lang="und" dir="ltr"><a href="https://t.co/zOg2AnUQhg">pic.twitter.com/zOg2AnUQhg</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1222560653606412288?ref_src=twsrc%5Etfw">January 29, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+
+### Base Addressの設定
+
+CPUからは新たにbypassが、bypass_0からはaudio_codec_ctrlが見えるようになっているのでAXI4でのベースアドレスを指定してあげる。
+基本的にはCPUから見えるベースアドレスと合わせることにした。これはBlock DesignのAddress Editorから設定できる。
+
+あとは合成して生成物を準備する
+
+### ベースデザインのDevice Treeを入手
+
+bypass_0というペリフェラルを追加したので、FPGAに新しいbitstreamを書き込めば該当する物理アドレスにR/Wをかければ使うことができる。
+ベアメタルなら該当のアドレスにアクセスをかければよいのだが、PynqではLinuxが動いているので行儀よくOSに教えてあげる必要がある。
+
+これにはDevice Treeを記述して、これをdtc(Device Tree Compiler)で`.dtb`に変換してあげる必要がある。
+通常であればBoot時に読み出せる場所に置く必要があるが、Device Tree OverlayをサポートしたOSであれば必ずしも起動時にロードする必要はない。
+
+まずはPYNQ-Z2で動いているDevice Treeを入手する。パット見リポジトリにはないので、PYNQ-Z2のボードにsshして以下コマンドで入手した。
+
+```sh
+$ sudo apt update && sudo apt install -y device-tree-compiler
+$ dtc -I fs /sys/firmware/devicetree/base
+```
+
+面倒な人はこちら [pynq-z2-base-origin.dts](https://github.com/kamiyaowl/pynq_dsp_hw/blob/2b35dc8b955dae146cd0319f336f31aff6e538d2/dist/pynq-z2-base-origin.dts)
+
+### Device Treeへの追記
+
+今回作成したbypassデザインは、特に特殊なアクセスが要求されないのでuio(Userspace I/O)のドライバを当てることにした。
+なにか特殊な初期化やら設定やら動きが必要であれば、自分でDevice Driverを書くことになる。
+
+```dts
+bypass@40010000 {
+    compatible = "generic-uio";
+    reg = <0x40010000 0x10000>;
+};
+```
+
+`reg`には、HLSのAddress Editorで設定した値を参考に記述する。これでLinuxからbypassの存在を知ることができ、uio経由でアクセスが可能になる。
+
+### Device Tree Blobへ戻す
+
+作成した`Device Tree.dts`を`.dtb`ファイルにする。Pynqのライブラリ上は厳密に`.dtbo`としていたのでこれに合わせた。
+`.bit`ファイルとファイル名を合わせておく
+
+```sh
+$ dtc -I dts -O dtb dst.dtbo src.dts
+```
+
+### 動作確認
+
+生成した`.bit`, `.hwh`, `.dtbo`をまとめてPynqに配置する。
+
+<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">†Device Tree Overlayエグゾディア† <a href="https://t.co/9lIcPj121R">pic.twitter.com/9lIcPj121R</a></p>&mdash; かみや (@kamiya_owl) <a href="https://twitter.com/kamiya_owl/status/1222898771698147329?ref_src=twsrc%5Etfw">January 30, 2020</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+あとはPynqのライブラリがかなりいい感じに展開してくれるので、bypassの`physMemAddr`設定を行い`ap_start`, `auto_restart`を書きに行けば動作するはず。
+
+あと、Overlayの引数は`.dtbo`ファイルは明示しないと読んでくれなさそうだった。
+`audio_codec_ctrl`の設定と合わせて以下の通りだった。
+
+```python
+from pynq.overlays.base import BaseOverlay
+base = BaseOverlay(bitfile='/home/xilinx/dist/base_wrapper.bit', dtbo='/home/xilinx/dist/base_wrapper.dtbo', download=True)
+
+# Line入力を有効化
+pAudio = base.audio
+pAudio.select_line_in() # line入力を使う
+
+# 自作HLSライブラリを設定する
+bypass = base.bypass_0
+offset_basePhyisAddr = bypass.register_map.basePhysAddr_V.address
+offset_ctrl          = bypass.register_map.CTRL.address
+
+# Bypassの読み書きのベースアドレスを指定
+bypass.write(offset=offset_basePhyisAddr, value=pAudio.mmio.base_addr)
+# HLSのモジュールを開始させる
+bypass.write(offset=offset_ctrl, value=0x81) # AUTO_RESTART, AP_START
+# 設定内容を表示
+print(bypass.register_map)
+```
+
+これで最初のツイートにある音声Bypassを自作IPから行うことができた。
+
+## 終わりに
+
+結構楽しい。
+
+### PYNQに関して
+
+Vivadoの使い方やらLinuxのでのDeviceの扱いなどを最低限知っていないといけないので、「Pythonだけで～」というのはちょっと厳しいというのが本音。(他人のデザインを使うなら話は別)
+だが、Device Tree OverlayやPynqのライブラリのおかげでZynqでBootさせるOSのconfigurationで試行錯誤する時間がごっそり短縮できる点は本当に素晴らしいと思う。（本当につらい、時間もかかるし）
+
+### Vivado HLSに関して
+
+CPUから制御する必要のあるIPだと残念ながらAXI I/Fを持つ実装を避けることはできない。しかしAXI4のI/Fが複数あるようなデザインをRTLで書くのは初心者でなくてもなかなかつらいものがある。
+
+Vivado HLSは関数の引数にディレクティブを指定するだけで上記を達成できるのがかなり嬉しい。今回は触れなかったが引数の値をそのままGPIOとして外に出したりもできる。
+なので`ap_uint<N>`の任意ビット幅指定の変数で公開すれば、何かしらの制御に使ったりすることももちろんできる。
+
+(対象のLEがカツカツなデバイスでなければ)とりあえずFPGAに興味がある人などでも試すのは大いにありだと感じる。
