@@ -39,31 +39,28 @@ categories:
 
 ### 1.2. ライブラリの参照方法
 
-**2020/05/20追記**
-**ライブラリ追加は、この方法だと実体がビルド対象になっておらず、リンク路にエラーになってしまうようです。**
-**wfi_monitorで良い解決策が見つかり次第記事を修正します。**
+**2020/05/24修正**
 
 1.2.についてはライブラリをArduino IDEのパス解決に任せないことにした。
 今日の多くのライブラリはgithubに公開されているものをzip DL, IDEに追加の流れを踏んでいたのでsubmoduleとしてリポジトリに追加している。
 
+その際に`lib`以下にまとめてsubmoduleとして追加されるようにし、後ほどDockerコンテナ内にマウントしている。
+
 {% highlight text %}
+$ cd lib
 $ git submodule add <追加したいライブラリのrepo url>
 {% endhighlight %}
 
-今回の場合はTFT影響制御のライブラリを追加している。
+今回の場合はTFT液晶制御のライブラリを追加している。
 
 {% highlight text %}
+$ cd lib
 $ git submodule add https://github.com/Bodmer/TFT_eSPI.git
 {% endhighlight %}
 
-Arduinoの実装から参照するときは、仕方ないがDirectory名付きでパス参照している
+後述するDocker上でビルドする際、`lib`ディレクトリをそのままArduino LibのおいてあるDirectoryにマウントして参照・ビルドしている。
 
-{% highlight c %}
-#include "TFT_eSPI/TFT_eSPI.h"
-{% endhighlight %}
-
-これで環境を汚さずに済む。最新にしたい場合もsubmoduleのrevを上げればよいだけである。
-*後述するがビルド環境をDocker環境で固定するならこの作業もやらなくてよかった気がする。*
+これで通常のビルドと遜色なく運用できるようになった。
 
 ### 3. Arduino IDEに依存しないビルド環境
 
@@ -102,11 +99,6 @@ RUN arduino-cli core install Seeeduino:samd --additional-urls https://files.seee
 # RUN arduino-cli core list # for debug
 
 
-# add 3rd-party library
-
-# RUN  arduino-cli lib install "libname"
-
-
 # create work directory
 
 RUN mkdir /work
@@ -134,9 +126,12 @@ services:
       build: .
       volumes:
         - ./:/work
+        - ./lib:/root/Arduino/libraries:ro
       command: >
         bash -c "chmod +x ./build.sh && ./build.sh"
 {% endhighlight %}
+
+`./lib`にcheckoutしてあるライブラリも、ここでRead Onlyでマウントしておくことで参照できる。
 
 これでDocker/Docker Composeさえ入っていればArduino CLIでビルドできるようになった。めでたい。
 
